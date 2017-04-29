@@ -10,6 +10,9 @@ from sklearn.multiclass import OneVsRestClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cross_validation import train_test_split
 
+from nltk.corpus import stopwords
+from nltk.tokenize import RegexpTokenizer
+
 import matplotlib.pyplot as plt
 
 '''
@@ -19,12 +22,18 @@ learning models to predict the MeSH headings.
 
 def main():
 
-    path = '/tmp/'
+    path = '/Users/xflorian/Downloads/tmp/'
 
     print('Read data'),
     time0 = time.time()
     y, list_of_authors, list_of_titles, list_of_abstracts = read_data(path)
     print 'done after %d seconds' % (time.time() - time0)
+
+    print('Create correlation matrix'),
+    time0 = time.time()
+    create_matrix(list_of_abstracts)
+    print 'done after %d seconds' % (time.time() - time0)
+    sys.exit()
 
     print('prepare features'),
     # produce a (samples, feature) matrix
@@ -114,6 +123,33 @@ def read_data(path):
     return y, list_of_authors, list_of_titles, list_of_abstracts
 
 
+def create_matrix(list_of_abstracts):
+    tokenizer = RegexpTokenizer(r'\w+')
+    list_of_filtered_lists = []
+    print "len(list_of_abstracts) = ", len(list_of_abstracts)
+    for abstract in list_of_abstracts:
+        list_of_words = tokenizer.tokenize(abstract.lower())
+        filtered_list_of_words = [word for word in list_of_words if conditions(word)] # remove digits as well
+        print len(list_of_filtered_lists)
+        list_of_filtered_lists.append(filtered_list_of_words) # assuming we are not interested to distinguish between lower and upper case
+    print "number of files = ", len(list_of_filtered_lists)
+
+    result_matrix = np.zeros([len(list_of_filtered_lists), len(list_of_filtered_lists)])
+    for i, list1 in enumerate(list_of_filtered_lists):
+        # we only need to calculate half of this symmetric matrix
+        for j in range(0, i):
+            result_matrix[i][j] = len(list(set(list1).intersection(list_of_filtered_lists[j])))
+            print i, j, result_matrix[i][j]
+    print "result_matrix = ", result_matrix
+    cPickle.dump(result_matrix, open('/Users/xflorian/Downloads/tmp/matrix.pickle', 'wb')) 
+    return result_matrix
+
+
+# Filters for the words which enter the analysis
+def conditions(word):
+    return (word not in stopwords.words('english') and not word.isdigit() and len(word) > 1)
+
+
 def prepare_data(list_of_authors, list_of_titles, list_of_abstracts):
     # We calculate the tf-idf for each feature
     vectorizer = TfidfVectorizer(analyzer = "word", tokenizer = None, preprocessor = None, stop_words = "english", max_features = 5000) 
@@ -127,7 +163,6 @@ def prepare_data(list_of_authors, list_of_titles, list_of_abstracts):
     train_data_features3 = train_data_features3.toarray()
 
     X = np.c_[train_data_features1, train_data_features2, train_data_features3]
-    print "X = ", X.shape
 
     return X
 
